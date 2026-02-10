@@ -1,0 +1,21 @@
+{
+  "name": "virtual-visiting-card-generator",
+  "version": "1.0.0",
+  "description": "Production-ready virtual visiting card generator with PDF and QR support",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "pdfkit": "^0.15.0",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "supertest": "^7.1.0"
+  }
+}
