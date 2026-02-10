@@ -19,6 +19,15 @@ function sanitizeInput(value) {
   return String(value || '').trim().replace(/\s+/g, ' ');
 }
 
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function validateCardFields(body) {
   const firstName = sanitizeInput(body.firstName);
   const lastName = sanitizeInput(body.lastName);
@@ -53,19 +62,20 @@ function renderPage({ title, content }) {
 function renderFormPage(errors = [], values = {}) {
   const errorHtml = errors.length
     ? `<div class="error-box"><h2>Please fix the following:</h2><ul>${errors
-        .map((error) => `<li>${error}</li>`)
+        .map((error) => `<li>${escapeHtml(error)}</li>`)
         .join('')}</ul></div>`
     : '';
 
   const content = `
-    <section class="card">
+    <section class="glass-panel">
+      <span class="chip">Acme Co Digital Identity</span>
       <h1>Virtual Visiting Card Generator</h1>
-      <p>Create your card and instantly download a PDF with QR code.</p>
+      <p>Create a clean, modern visiting card and instantly download a print-ready PDF with a smart QR code.</p>
       ${errorHtml}
-      <form method="post" action="/create" novalidate>
-        <label>First name<input required name="firstName" value="${values.firstName || ''}" /></label>
-        <label>Last name<input required name="lastName" value="${values.lastName || ''}" /></label>
-        <label>Designation<input required name="designation" value="${values.designation || ''}" /></label>
+      <form method="post" action="/create" novalidate class="form-grid">
+        <label>First name<input required name="firstName" value="${escapeHtml(values.firstName || '')}" /></label>
+        <label>Last name<input required name="lastName" value="${escapeHtml(values.lastName || '')}" /></label>
+        <label>Designation<input required name="designation" value="${escapeHtml(values.designation || '')}" /></label>
         <button type="submit">Generate & Download PDF</button>
       </form>
     </section>`;
@@ -84,16 +94,37 @@ async function generatePdf(card, cardUrl) {
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    doc.fontSize(20).fillColor('#1f2937').text('Acme Co', { align: 'left' });
-    doc.moveDown(0.4);
-    doc.fontSize(16).fillColor('#111827').text(`${card.firstName} ${card.lastName}`);
-    doc.moveDown(0.2);
-    doc.fontSize(12).fillColor('#374151').text(card.designation);
-    doc.moveDown(0.8);
-    doc.image(qrBuffer, { fit: [130, 130], align: 'left' });
-    doc.moveDown(0.6);
-    doc.fontSize(10).fillColor('#6b7280').text(`Card ID: ${card.id}`);
-    doc.fontSize(9).fillColor('#4b5563').text(cardUrl, { width: 240 });
+    const pageWidth = doc.page.width;
+    const pageHeight = doc.page.height;
+    const frameX = 16;
+    const frameY = 16;
+    const frameWidth = pageWidth - 32;
+    const frameHeight = pageHeight - 32;
+    const left = frameX + 18;
+    const top = frameY + 18;
+    const qrSize = 84;
+    const qrX = frameX + frameWidth - qrSize - 18;
+    const qrY = top;
+
+    doc.roundedRect(frameX, frameY, frameWidth, frameHeight, 14).fillAndStroke('#f8fafc', '#dbeafe');
+    doc.roundedRect(frameX, frameY, frameWidth, 52, 14).fill('#1d4ed8');
+
+    doc.fillColor('#bfdbfe').fontSize(9).text('ACME CO', left, top + 6, { width: 140 });
+    doc.fillColor('#ffffff').fontSize(15).font('Helvetica-Bold').text('Virtual Visiting Card', left, top + 18, { width: 170 });
+
+    doc.roundedRect(qrX - 5, qrY - 5, qrSize + 10, qrSize + 10, 8).fill('#ffffff');
+    doc.image(qrBuffer, qrX, qrY, { fit: [qrSize, qrSize] });
+
+    const fullName = `${card.firstName} ${card.lastName}`;
+    const detailTop = frameY + 82;
+    doc.fillColor('#0f172a').fontSize(18).font('Helvetica-Bold').text(fullName, left, detailTop, { width: frameWidth - qrSize - 44 });
+    doc.fillColor('#334155').fontSize(11).font('Helvetica').text(card.designation, left, detailTop + 24, { width: frameWidth - qrSize - 44 });
+
+    doc.fillColor('#475569').fontSize(8).text('CARD ID', left, detailTop + 56);
+    doc.fillColor('#111827').fontSize(10).font('Helvetica-Bold').text(card.id, left, detailTop + 66, { width: frameWidth - 36 });
+
+    doc.moveTo(left, pageHeight - 48).lineTo(frameX + frameWidth - 18, pageHeight - 48).lineWidth(1).strokeColor('#e2e8f0').stroke();
+    doc.fillColor('#64748b').fontSize(8).font('Helvetica').text(cardUrl, left, pageHeight - 40, { width: frameWidth - 36 });
 
     doc.end();
   });
@@ -105,7 +136,7 @@ function getCardOr404(req, res) {
     res.status(404).send(
       renderPage({
         title: 'Card Not Found',
-        content: `<section class="card"><h1>404 - Card not found</h1><p>We couldn't find a visiting card for ID <strong>${req.params.id}</strong>.</p><a href="/">Create a new card</a></section>`
+        content: `<section class="glass-panel"><h1>404 - Card not found</h1><p>We couldn't find a visiting card for ID <strong>${escapeHtml(req.params.id)}</strong>.</p><a href="/">Create a new card</a></section>`
       })
     );
     return null;
@@ -146,13 +177,14 @@ app.get('/card/:id', (req, res) => {
   const card = getCardOr404(req, res);
   if (!card) return;
 
-  const content = `<section class="card">
-    <h1>${card.firstName} ${card.lastName}</h1>
-    <p class="designation">${card.designation}</p>
-    <p><strong>Card ID:</strong> ${card.id}</p>
-    <img src="/card/${card.id}/qr.png" alt="QR code for ${card.firstName} ${card.lastName}" class="qr" />
+  const content = `<section class="glass-panel visiting-preview">
+    <span class="chip">Digital Card Preview</span>
+    <h1>${escapeHtml(card.firstName)} ${escapeHtml(card.lastName)}</h1>
+    <p class="designation">${escapeHtml(card.designation)}</p>
+    <div class="meta-row"><span>Card ID</span><strong>${escapeHtml(card.id)}</strong></div>
+    <img src="/card/${card.id}/qr.png" alt="QR code for ${escapeHtml(card.firstName)} ${escapeHtml(card.lastName)}" class="qr" />
     <a class="button" href="/card/${card.id}/download">Download PDF</a>
-    <a href="/">Create another card</a>
+    <a class="link-muted" href="/">Create another card</a>
   </section>`;
 
   res.send(renderPage({ title: `${card.firstName} ${card.lastName} - Visiting Card`, content }));
@@ -192,7 +224,7 @@ app.use((req, res) => {
   res.status(404).send(
     renderPage({
       title: 'Page Not Found',
-      content: '<section class="card"><h1>404 - Page not found</h1><p>The page you requested does not exist.</p><a href="/">Go to home</a></section>'
+      content: '<section class="glass-panel"><h1>404 - Page not found</h1><p>The page you requested does not exist.</p><a href="/">Go to home</a></section>'
     })
   );
 });
@@ -202,7 +234,7 @@ app.use((error, req, res, next) => {
   res.status(500).send(
     renderPage({
       title: 'Server Error',
-      content: '<section class="card"><h1>Something went wrong</h1><p>Please try again in a moment.</p><a href="/">Go back</a></section>'
+      content: '<section class="glass-panel"><h1>Something went wrong</h1><p>Please try again in a moment.</p><a href="/">Go back</a></section>'
     })
   );
 });
