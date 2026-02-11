@@ -19,19 +19,19 @@ test('POST /create validates required fields', async () => {
   assert.match(res.text, /First name is required/);
 });
 
-test('POST /create returns downloadable PDF and card URL header', async () => {
+test('POST /create returns downloadable card SVG and card URL header', async () => {
   const res = await request(app)
     .post('/create')
     .send('firstName=Anu&lastName=Raj&designation=Engineer')
     .set('Content-Type', 'application/x-www-form-urlencoded');
 
   assert.equal(res.status, 200);
-  assert.equal(res.headers['content-type'], 'application/pdf');
+  assert.match(res.headers['content-type'], /image\/svg\+xml/);
   assert.ok(res.headers['x-card-url']);
-  assert.ok(res.body.length > 1000);
+  assert.match(res.body.toString('utf8'), /<svg/);
 });
 
-test('Card routes support display, qr, and download', async () => {
+test('Card routes support display, qr, card image download, and vcard', async () => {
   const createRes = await request(app)
     .post('/create')
     .send('firstName=Arun&lastName=K&designation=Designer')
@@ -50,7 +50,12 @@ test('Card routes support display, qr, and download', async () => {
 
   const downloadRes = await request(app).get(`/card/${id}/download`);
   assert.equal(downloadRes.status, 200);
-  assert.equal(downloadRes.headers['content-type'], 'application/pdf');
+  assert.match(downloadRes.headers['content-type'], /image\/svg\+xml/);
+
+  const vcfRes = await request(app).get(`/card/${id}/contact.vcf`);
+  assert.equal(vcfRes.status, 200);
+  assert.match(vcfRes.headers['content-type'], /text\/vcard/);
+  assert.match(vcfRes.text, /BEGIN:VCARD/);
 });
 
 test('Missing IDs return 404', async () => {
