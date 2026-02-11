@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const path = require('path');
 const express = require('express');
 const QRCode = require('qrcode');
+const PDFDocument = require('pdfkit');
 
 const app = express();
 const cards = new Map();
@@ -69,70 +70,64 @@ function renderFormPage(errors = [], values = {}) {
     <section class="glass-panel">
       <span class="chip">Acme Co Digital Identity</span>
       <h1>Virtual Visiting Card Generator</h1>
-      <p>Create a clean card image and instantly download a share-ready vCard with QR support.</p>
+      <p>Create a clean, modern visiting card and instantly download a print-ready PDF with a smart QR code.</p>
       ${errorHtml}
       <form method="post" action="/create" novalidate class="form-grid">
         <label>First name<input required name="firstName" value="${escapeHtml(values.firstName || '')}" /></label>
         <label>Last name<input required name="lastName" value="${escapeHtml(values.lastName || '')}" /></label>
         <label>Designation<input required name="designation" value="${escapeHtml(values.designation || '')}" /></label>
-        <button type="submit">Generate & Download Card Image</button>
+        <button type="submit">Generate & Download PDF</button>
       </form>
     </section>`;
 
   return renderPage({ title: 'Virtual Visiting Card Generator', content });
 }
 
-async function generateCardSvg(card, cardUrl) {
-  const qrDataUrl = await QRCode.toDataURL(cardUrl, { margin: 1, width: 320 });
-  const fullName = `${escapeHtml(card.firstName)} ${escapeHtml(card.lastName)}`;
-  const designation = escapeHtml(card.designation);
-  const escapedId = escapeHtml(card.id);
-  const escapedUrl = escapeHtml(cardUrl);
+async function generatePdf(card, cardUrl) {
+  const qrBuffer = await QRCode.toBuffer(cardUrl, { type: 'png', margin: 1, width: 240 });
 
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="1050" height="600" viewBox="0 0 1050 600" role="img" aria-label="Virtual visiting card">
-  <defs>
-    <linearGradient id="hero" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#F37021"/>
-      <stop offset="100%" stop-color="#942864"/>
-    </linearGradient>
-  </defs>
-  <rect width="1050" height="600" rx="36" fill="#ffffff"/>
-  <rect x="24" y="24" width="1002" height="552" rx="28" fill="#ffffff" stroke="#DADAD9" stroke-width="2"/>
-  <rect x="24" y="24" width="1002" height="132" rx="28" fill="url(#hero)"/>
-  <rect x="24" y="130" width="1002" height="26" fill="#D2401A"/>
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: 'A6', margin: 24 });
+    const chunks = [];
 
-  <text x="74" y="88" fill="#FBD644" font-family="Arial, sans-serif" font-size="30" font-weight="700">ACME CO</text>
-  <text x="74" y="126" fill="#ffffff" font-family="Arial, sans-serif" font-size="46" font-weight="700">Virtual Visiting Card</text>
+    doc.on('data', (chunk) => chunks.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
 
-  <rect x="744" y="168" width="220" height="220" rx="20" fill="#ffffff" stroke="#DADAD9" stroke-width="2"/>
-  <image href="${qrDataUrl}" x="764" y="188" width="180" height="180"/>
-  <text x="854" y="418" text-anchor="middle" fill="#6D6D71" font-family="Arial, sans-serif" font-size="20">Scan to open card</text>
+    const pageWidth = doc.page.width;
+    const pageHeight = doc.page.height;
+    const frameX = 16;
+    const frameY = 16;
+    const frameWidth = pageWidth - 32;
+    const frameHeight = pageHeight - 32;
+    const left = frameX + 18;
+    const top = frameY + 18;
+    const qrSize = 84;
+    const qrX = frameX + frameWidth - qrSize - 18;
+    const qrY = top;
 
-  <text x="74" y="258" fill="#3B475B" font-family="Arial, sans-serif" font-size="64" font-weight="700">${fullName}</text>
-  <text x="74" y="312" fill="#6D6D71" font-family="Arial, sans-serif" font-size="34">${designation}</text>
+    doc.roundedRect(frameX, frameY, frameWidth, frameHeight, 14).fillAndStroke('#f8fafc', '#dbeafe');
+    doc.roundedRect(frameX, frameY, frameWidth, 52, 14).fill('#1d4ed8');
 
-  <text x="74" y="386" fill="#942864" font-family="Arial, sans-serif" font-size="18" font-weight="700">CARD ID</text>
-  <text x="74" y="420" fill="#D2401A" font-family="Arial, sans-serif" font-size="25" font-weight="700">${escapedId}</text>
+    doc.fillColor('#bfdbfe').fontSize(9).text('ACME CO', left, top + 6, { width: 140 });
+    doc.fillColor('#ffffff').fontSize(15).font('Helvetica-Bold').text('Virtual Visiting Card', left, top + 18, { width: 170 });
 
-  <rect x="74" y="472" width="640" height="56" rx="14" fill="#FDE7DD"/>
-  <text x="92" y="507" fill="#6D6D71" font-family="Arial, sans-serif" font-size="19">${escapedUrl}</text>
-</svg>`;
-}
+    doc.roundedRect(qrX - 5, qrY - 5, qrSize + 10, qrSize + 10, 8).fill('#ffffff');
+    doc.image(qrBuffer, qrX, qrY, { fit: [qrSize, qrSize] });
 
-function generateVcard(card, cardUrl) {
-  const fullName = `${card.firstName} ${card.lastName}`;
-  return [
-    'BEGIN:VCARD',
-    'VERSION:3.0',
-    `FN:${fullName}`,
-    `N:${card.lastName};${card.firstName};;;`,
-    `TITLE:${card.designation}`,
-    `NOTE:Virtual Card ID ${card.id}`,
-    `URL:${cardUrl}`,
-    'ORG:Acme Co',
-    'END:VCARD'
-  ].join('\r\n');
+    const fullName = `${card.firstName} ${card.lastName}`;
+    const detailTop = frameY + 82;
+    doc.fillColor('#0f172a').fontSize(18).font('Helvetica-Bold').text(fullName, left, detailTop, { width: frameWidth - qrSize - 44 });
+    doc.fillColor('#334155').fontSize(11).font('Helvetica').text(card.designation, left, detailTop + 24, { width: frameWidth - qrSize - 44 });
+
+    doc.fillColor('#475569').fontSize(8).text('CARD ID', left, detailTop + 56);
+    doc.fillColor('#111827').fontSize(10).font('Helvetica-Bold').text(card.id, left, detailTop + 66, { width: frameWidth - 36 });
+
+    doc.moveTo(left, pageHeight - 48).lineTo(frameX + frameWidth - 18, pageHeight - 48).lineWidth(1).strokeColor('#e2e8f0').stroke();
+    doc.fillColor('#64748b').fontSize(8).font('Helvetica').text(cardUrl, left, pageHeight - 40, { width: frameWidth - 36 });
+
+    doc.end();
+  });
 }
 
 function getCardOr404(req, res) {
@@ -167,12 +162,12 @@ app.post('/create', async (req, res, next) => {
     cards.set(id, card);
 
     const cardUrl = `${getBaseUrl(req)}/card/${id}`;
-    const svg = await generateCardSvg(card, cardUrl);
+    const pdf = await generatePdf(card, cardUrl);
 
-    res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="visiting-card-${id}.svg"`);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="visiting-card-${id}.pdf"`);
     res.setHeader('X-Card-Url', cardUrl);
-    res.send(svg);
+    res.send(pdf);
   } catch (error) {
     next(error);
   }
@@ -188,11 +183,7 @@ app.get('/card/:id', (req, res) => {
     <p class="designation">${escapeHtml(card.designation)}</p>
     <div class="meta-row"><span>Card ID</span><strong>${escapeHtml(card.id)}</strong></div>
     <img src="/card/${card.id}/qr.png" alt="QR code for ${escapeHtml(card.firstName)} ${escapeHtml(card.lastName)}" class="qr" />
-    <div class="actions">
-      <a class="button" href="/card/${card.id}/download" download="visiting-card-${card.id}.svg">Download Card Image</a>
-      <a class="button secondary" href="/card/${card.id}/contact.vcf" download="visiting-card-${card.id}.vcf">Download vCard</a>
-    </div>
-    <p class="download-note">You can share the SVG card image and import the vCard directly into contacts.</p>
+    <a class="button" href="/card/${card.id}/download">Download PDF</a>
     <a class="link-muted" href="/">Create another card</a>
   </section>`;
 
@@ -219,26 +210,14 @@ app.get('/card/:id/download', async (req, res, next) => {
     if (!card) return;
 
     const cardUrl = `${getBaseUrl(req)}/card/${card.id}`;
-    const svg = await generateCardSvg(card, cardUrl);
+    const pdf = await generatePdf(card, cardUrl);
 
-    res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="visiting-card-${card.id}.svg"`);
-    res.send(svg);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="visiting-card-${card.id}.pdf"`);
+    res.send(pdf);
   } catch (error) {
     next(error);
   }
-});
-
-app.get('/card/:id/contact.vcf', (req, res) => {
-  const card = getCardOr404(req, res);
-  if (!card) return;
-
-  const cardUrl = `${getBaseUrl(req)}/card/${card.id}`;
-  const vcard = generateVcard(card, cardUrl);
-
-  res.setHeader('Content-Type', 'text/vcard; charset=utf-8');
-  res.setHeader('Content-Disposition', `attachment; filename="visiting-card-${card.id}.vcf"`);
-  res.send(vcard);
 });
 
 app.use((req, res) => {
@@ -268,4 +247,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, cards, validateCardFields, generateCardSvg, generateVcard };
+module.exports = { app, cards, validateCardFields, generatePdf };

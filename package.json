@@ -1,7 +1,7 @@
 {
   "name": "virtual-visiting-card-generator",
   "version": "1.0.0",
-  "description": "Virtual visiting card generator with SVG image and vCard download support",
+  "description": "Production-ready virtual visiting card generator with PDF and QR support",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "express": "^4.21.2",
+    "pdfkit": "^0.15.0",
     "qrcode": "^1.5.4"
   },
   "devDependencies": {
