@@ -65,7 +65,7 @@ p { color: var(--text-sub); margin-top: 0.65rem; }
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
-  color: var(--brand-purple);
+    color: var(--brand-purple);
   background: rgba(251, 214, 68, 0.36);
 }
 
