@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="72" viewBox="0 0 240 72" role="img" aria-label="Acme Co logo">
+  <defs>
+    <linearGradient id="acmeGrad" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#F37021"/>
+      <stop offset="100%" stop-color="#942864"/>
+    </linearGradient>
+  </defs>
+  <rect width="240" height="72" rx="12" fill="url(#acmeGrad)"/>
+  <rect x="0" y="54" width="240" height="18" fill="#D2401A"/>
+  <text x="120" y="42" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" font-weight="700" fill="#FBD644">Acme Co</text>
+</svg>

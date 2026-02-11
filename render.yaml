@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: virtual-visiting-card-generator
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    plan: free
