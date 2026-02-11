@@ -84,10 +84,10 @@ function renderFormPage(errors = [], values = {}) {
 }
 
 async function generatePdf(card, cardUrl) {
-  const qrBuffer = await QRCode.toBuffer(cardUrl, { type: 'png', margin: 1, width: 220 });
+  const qrBuffer = await QRCode.toBuffer(cardUrl, { type: 'png', margin: 1, width: 240 });
 
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: [360, 220], margin: 16 });
+    const doc = new PDFDocument({ size: 'A6', margin: 24 });
     const chunks = [];
 
     doc.on('data', (chunk) => chunks.push(chunk));
@@ -96,36 +96,35 @@ async function generatePdf(card, cardUrl) {
 
     const pageWidth = doc.page.width;
     const pageHeight = doc.page.height;
-    const frameX = 12;
-    const frameY = 12;
-    const frameWidth = pageWidth - 24;
-    const frameHeight = pageHeight - 24;
-    const left = frameX + 16;
-    const top = frameY + 16;
-    const qrSize = 74;
-    const qrX = frameX + frameWidth - qrSize - 16;
-    const qrY = top + 4;
+    const frameX = 16;
+    const frameY = 16;
+    const frameWidth = pageWidth - 32;
+    const frameHeight = pageHeight - 32;
+    const left = frameX + 18;
+    const top = frameY + 18;
+    const qrSize = 84;
+    const qrX = frameX + frameWidth - qrSize - 18;
+    const qrY = top;
 
-    doc.roundedRect(frameX, frameY, frameWidth, frameHeight, 16).fillAndStroke('#ffffff', '#DADAD9');
-    doc.roundedRect(frameX, frameY, frameWidth, 54, 16).fill('#F37021');
+    doc.roundedRect(frameX, frameY, frameWidth, frameHeight, 14).fillAndStroke('#f8fafc', '#dbeafe');
+    doc.roundedRect(frameX, frameY, frameWidth, 52, 14).fill('#1d4ed8');
 
-    doc.fillColor('#FBD644').fontSize(8).font('Helvetica-Bold').text('ACME CO', left, top + 4, { width: 140 });
-    doc.fillColor('#ffffff').fontSize(13).font('Helvetica-Bold').text('Virtual Visiting Card', left, top + 17, { width: 174 });
+    doc.fillColor('#bfdbfe').fontSize(9).text('ACME CO', left, top + 6, { width: 140 });
+    doc.fillColor('#ffffff').fontSize(15).font('Helvetica-Bold').text('Virtual Visiting Card', left, top + 18, { width: 170 });
 
     doc.roundedRect(qrX - 5, qrY - 5, qrSize + 10, qrSize + 10, 8).fill('#ffffff');
     doc.image(qrBuffer, qrX, qrY, { fit: [qrSize, qrSize] });
 
     const fullName = `${card.firstName} ${card.lastName}`;
-    const detailTop = frameY + 78;
-    const detailWidth = frameWidth - qrSize - 38;
-    doc.fillColor('#3B475B').fontSize(16).font('Helvetica-Bold').text(fullName, left, detailTop, { width: detailWidth });
-    doc.fillColor('#6D6D71').fontSize(10.5).font('Helvetica').text(card.designation, left, detailTop + 22, { width: detailWidth });
+    const detailTop = frameY + 82;
+    doc.fillColor('#0f172a').fontSize(18).font('Helvetica-Bold').text(fullName, left, detailTop, { width: frameWidth - qrSize - 44 });
+    doc.fillColor('#334155').fontSize(11).font('Helvetica').text(card.designation, left, detailTop + 24, { width: frameWidth - qrSize - 44 });
 
-    doc.fillColor('#942864').fontSize(8).font('Helvetica-Bold').text('CARD ID', left, detailTop + 48);
-    doc.fillColor('#D2401A').fontSize(9.5).font('Helvetica-Bold').text(card.id, left, detailTop + 58, { width: frameWidth - 32 });
+    doc.fillColor('#475569').fontSize(8).text('CARD ID', left, detailTop + 56);
+    doc.fillColor('#111827').fontSize(10).font('Helvetica-Bold').text(card.id, left, detailTop + 66, { width: frameWidth - 36 });
 
-    doc.roundedRect(left, pageHeight - 36, frameWidth - 32, 18, 7).fill('#FDE7DD');
-    doc.fillColor('#6D6D71').fontSize(7).font('Helvetica').text(cardUrl, left + 6, pageHeight - 31, { width: frameWidth - 44, ellipsis: true });
+    doc.moveTo(left, pageHeight - 48).lineTo(frameX + frameWidth - 18, pageHeight - 48).lineWidth(1).strokeColor('#e2e8f0').stroke();
+    doc.fillColor('#64748b').fontSize(8).font('Helvetica').text(cardUrl, left, pageHeight - 40, { width: frameWidth - 36 });
 
     doc.end();
   });
@@ -184,11 +183,7 @@ app.get('/card/:id', (req, res) => {
     <p class="designation">${escapeHtml(card.designation)}</p>
     <div class="meta-row"><span>Card ID</span><strong>${escapeHtml(card.id)}</strong></div>
     <img src="/card/${card.id}/qr.png" alt="QR code for ${escapeHtml(card.firstName)} ${escapeHtml(card.lastName)}" class="qr" />
-    <div class="actions">
-      <a class="button" href="/card/${card.id}/download" download="visiting-card-${card.id}.pdf">Download PDF</a>
-      <a class="button secondary" href="/card/${card.id}/download" target="_blank" rel="noopener">Open PDF</a>
-    </div>
-    <p class="download-note">Tip: If your browser previews PDF first, use the share/download option there to save to your phone.</p>
+    <a class="button" href="/card/${card.id}/download">Download PDF</a>
     <a class="link-muted" href="/">Create another card</a>
   </section>`;
 
